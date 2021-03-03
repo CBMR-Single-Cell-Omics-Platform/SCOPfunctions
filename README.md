@@ -4,9 +4,23 @@ An R package of functions for single cell -omics analysis. Extensions to Seurat 
 
 ## Getting started
 
+### Install
+
 ```
 devtools::install_github("CBMR-Single-Cell-Omics-Platform/SCOPfunctions")
 ```
+
+### Usage
+
+See the vignettes (TODO):
+
+```
+Hashtag Oligo demultiplexing
+Differential expression analysis
+Plotting
+Non-negative Matrix Factorization
+``` 
+
  
 ## Contribute
 
