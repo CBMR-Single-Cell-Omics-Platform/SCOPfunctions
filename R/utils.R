@@ -32,7 +32,7 @@ f_dlfile <- function(url, destfile, correct_checksum) {
     print("Downloading file")
     download.file(url, destfile, quiet = FALSE)
     print("Verifying file integrity...")
-    checksum = try(md5sum(destfile), quiet = FALSE)
+    checksum = try(md5sum(destfile))
     if(checksum != correct_checksum){
       warning("downloaded file checksum does not match correct_checksum!")
     }
@@ -43,7 +43,7 @@ f_dlfile <- function(url, destfile, correct_checksum) {
       print("Existing file looks corrupted or is out of date, downloading again.")
       try(download.file(url, destfile, quiet = FALSE))
       print("Verifying file integrity...")
-      checksum = try(md5sum(destfile), quiet = FALSE)
+      checksum = try(md5sum(destfile))
       if(checksum != correct_checksum){
         warning("downloaded file checksum does not match correct_checksum!")
       }
