@@ -1,3 +1,6 @@
+#' Compute average log fold changes
+#'
+#' @param data feature * sample matrix
 #' @param cells.1 Vector of cell names belonging to group 1
 #' @param cells.2 Vector of cell names belonging to group 2
 #' @param features Features to calculate fold change for.
@@ -5,13 +8,10 @@
 #' @importFrom Matrix rowSums
 #' @rdname FoldChange
 #' @concept differential_expression
-#' @export
 #' @method FoldChange default
-#' . Stuart and Butler et al. Comprehensive Integration of Single-Cell Data. Cell (2019)
-#'
-#' . Copied from Seurat 3 source at https://github.com/satijalab/seurat/blob/master/R/differential_expression.R
+#' @references Copied from Seurat 3 source at https://github.com/satijalab/seurat/blob/master/R/differential_expression.R
 FoldChange.default <- function(
-  object,
+  data,
   cells.1,
   cells.2,
   mean.fxn,
@@ -19,22 +19,25 @@ FoldChange.default <- function(
   features = NULL,
   ...
 ) {
-  features <- features %||% rownames(x = object)
+  if (!"matrix" %in% class(data)) {
+    data = as.matrix(data)
+  }
+  features <- if (is.null(features)) rownames(data) else features
   # Calculate percent expressed
   thresh.min <- 0
   pct.1 <- round(
-    x = rowSums(x = object[rownames(object) %in% features, colnames(object) %in% cells.1, drop = FALSE] > thresh.min) /
+    x = rowSums(x = data[rownames(data) %in% features, colnames(data) %in% cells.1, drop = FALSE] > thresh.min) /
       length(x = cells.1),
     digits = 3
   )
   pct.2 <- round(
-    x = rowSums(x = object[rownames(object) %in% features, colnames(object) %in% cells.2, drop = FALSE] > thresh.min) /
+    x = rowSums(x = data[rownames(data) %in% features, colnames(data) %in% cells.2, drop = FALSE] > thresh.min) /
       length(x = cells.2),
     digits = 3
   )
   # Calculate fold change
-  data.1 <- mean.fxn(object[rownames(object) %in% features, colnames(object) %in% cells.1, drop = FALSE])
-  data.2 <- mean.fxn(object[rownames(object) %in% features, colnames(object) %in% cells.2, drop = FALSE])
+  data.1 <- mean.fxn(data[rownames(data) %in% features, colnames(data) %in% cells.1, drop = FALSE])
+  data.2 <- mean.fxn(data[rownames(data) %in% features, colnames(data) %in% cells.2, drop = FALSE])
   fc <- (data.1 - data.2)
   fc.results <- as.data.frame(x = cbind(fc, pct.1, pct.2))
   colnames(fc.results) <- c(fc.name, "pct.1", "pct.2")
@@ -77,7 +80,7 @@ FoldChange.default <- function(
 #' . Stuart and Butler et al. Comprehensive Integration of Single-Cell Data. Cell (2019)
 #'
 #' . Seurat 3 source at https://github.com/satijalab/seurat/blob/master/R/differential_expression.R
-MAST_DE_rand_effect_seurat = function(
+DE_MAST_RE_seurat = function(
   object,
   random_effect.var,
   ident.1,
@@ -98,13 +101,17 @@ MAST_DE_rand_effect_seurat = function(
   ...
 ) {
 
-  if (!is.null(n_cores)) old_opt <- options("mc.cores"=n_cores)
+  if (!is.null(n_cores)) {
+    # https://www.tidyverse.org/blog/2020/04/self-cleaning-test-fixtures/#the-onexit-pattern
+    # set new value and capture old in op
+    op <- options("mc.cores"=n_cores)
+    on.exit(options(op), add = T)
+  }
 
   fc.name  <- if (base == exp(1)) "avg_logFC" else paste0("avg_log", base, "FC")
   #======== check inputs ========================================
 
   stopifnot(!is.null(random_effect.var))
-
   stopifnot(random_effect.var %in% colnames(object@meta.data))
 
   if (slot != "data") warning(paste0("MAST uses the logNormalised counts which are usually in the 'data' slot, but you are using ",slot))
@@ -113,11 +120,11 @@ MAST_DE_rand_effect_seurat = function(
   if (verbose) message(paste0("using ", round(base,2), " as log base. Make sure that the data slot has been log-transformed using this base"))
   #======== resolve idents and get cells ===================
 
-  logical.cells.1 = if (!is.null(group.by)) {object@meta.data[[group.by]] == ident.1} else {Idents(object) == ident.1}
+  logical.cells.1 = if (!is.null(group.by)) {object@meta.data[[group.by]] == ident.1} else {Seurat::Idents(object) == ident.1}
   if (sum(logical.cells.1)==0) {
     stop("no cells found matching ident.1. Did you forget to set Idents(object) or use group.by?")
   }
-  logical.cells.2 = if (is.null(ident.2)) {!logical.cells.1} else {if (!is.null(group.by)) {object@meta.data[[group.by]] == ident.2} else {Idents(object) == ident.2}}
+  logical.cells.2 = if (is.null(ident.2)) {!logical.cells.1} else {if (!is.null(group.by)) {object@meta.data[[group.by]] == ident.2} else {Seurat::Idents(object) == ident.2}}
   if (sum(logical.cells.2)==0) {
     stop("no cells found matching ident.2. Did you forget to set Idents(object) or use group.by?")
   }
@@ -127,7 +134,7 @@ MAST_DE_rand_effect_seurat = function(
 
   #======== features =================================
 
-  features <- features %||% rownames(object)
+  features <- if (is.null(features)) rownames(object) else features
 
   if (any(!features %in% rownames(object))) {
     warning(paste0(paste(features[!features %in% rownames(object)], collapse = ", "), " not found in data!"))
@@ -136,7 +143,7 @@ MAST_DE_rand_effect_seurat = function(
   features = features[features %in% rownames(object)]
   vec_logical_features = rep(T, length(features))
 
-  data = Seurat::GetAssayData(object = object, assay=assay, slot=slot)
+  data = as.matrix(Seurat::GetAssayData(object = object, assay=assay, slot=slot))
 
   # compute average log fold change
   pseudocount.use = 1
@@ -145,7 +152,7 @@ MAST_DE_rand_effect_seurat = function(
   }
   # outputs a data.frame with columns fc.name, "pct.1", "pct.2"
   fc.results = FoldChange.default(
-      object=data,
+      data=data,
       cells.1=cells.1,
       cells.2=cells.2,
       mean.fxn=mean.fxn,
@@ -223,6 +230,7 @@ MAST_DE_rand_effect_seurat = function(
   }
 
   #======== prep  feature data =========================
+
   df_feature = data.frame("primerid"=rownames(data)) # primerid is hardcoded feature name in MAST
 
   #======== prep SingleCellAssay object ============================
@@ -306,8 +314,6 @@ MAST_DE_rand_effect_seurat = function(
   #rownames(df_out) = summaryCond$datatable[contrast=='groupGroup1' & component=='H', primerid]
 
   de.results = de.results[order(de.results$p_val, -de.results[[fc.name]]),]
-  # reset mc.cores option
-  if (!is.null(n_cores)) options(mc.cores=old_opt$mc.cores)
 
   return(de.results)
 }

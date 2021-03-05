@@ -1,33 +1,25 @@
-# Hello, world!
-#
-# This is an example function named 'hello'
-# which prints 'Hello, world!'.
-#
-# You can learn more about package authoring with RStudio at:
-#
-#   http://r-pkgs.had.co.nz/
-#
-# Some useful keyboard shortcuts for package authoring:
-#
-#   Install Package:           'Ctrl + Shift + B'
-#   Check Package:             'Ctrl + Shift + E'
-#   Test Package:              'Ctrl + Shift + T'
-
-
-f_rmPkgs <- function() {
-  #' @usage detach and unload all packages
-  #' @return none
-  #' @references https://stackoverflow.com/questions/7505547/detach-all-packages-while-working-in-r
+#' Detach all packages from current session
+#'
+#' @return None
+#' @export
+#' @references https://stackoverflow.com/questions/7505547/detach-all-packages-while-working-in-r
+#' @examples utils_detachAllPkgs()
+utils_detachAllPkgs <- function() {
   while (!is.null(names(sessionInfo()$otherPkgs))) lapply(paste('package:',names(sessionInfo()$otherPkgs),sep=""),detach,character.only=TRUE,unload=TRUE)
 }
 
-f_dlfile <- function(url, destfile, correct_checksum) {
-  #' @usage: checks if destfile is present; if not, downloads and checks md5sum against correct_md5sum
-  #' @param url: passed to download.file().
-  #' @param destfile: passed to download.file().
-  #' @param correct_checksum: to check file integrity
-  #' @value: none
 
+#' Check if a file matches given hash, else download it and check again
+#'
+#' @param url passed to download.file()
+#' @param destfile passed to download.file().
+#' @param correct_checksum file md5 checksum
+#'
+#' @return
+#' @export
+#'
+#' @examples utils_dlFile(url=https:/.mysite.com/files/test.csv, destfile="./data", correct_checksum="2c3294272a968ffc91c0c2af2c296988")
+utils_dlFile <- function(url, destfile, correct_checksum) {
   if(!file.exists(destfile)){
     print("Downloading file")
     download.file(url, destfile, quiet = FALSE)
@@ -54,39 +46,52 @@ f_dlfile <- function(url, destfile, correct_checksum) {
 }
 
 
-f_top_objectsizes <- function(n) {
-  #' @usage show the memory size of the top n objects
-  #' @param n how many objects to list
-  #' @return NULL
+#' Show the memory size of the top n objects
+#'
+#' @param n how many objects to list
+#'
+#' @return
+#' @export
+#'
+#' @examples utils_printObjectSizes(10)
+utils_printObjectSizes <- function(n) {
   sapply(ls(), function(x) object.size(eval(parse(text=x)))) %>% sort(., decreasing=T) %>% head(., n)
 }
 
-f_detectCores_plus <- function(Gb_max=250,
+#' Detect cores with RAM constraints
+#'
+#' @description Given a ceiling on RAM to use and predicted extra RAM needed in
+#' . each worker in addition to current usage, return safe number of cores
+#' @param Gb_max ceiling on session memory usage in Gb, assuming that each worker duplicates the session memory
+#' @param additional_Gb max additional memory requirement for new (temporary) objects created within a parallel session
+#'
+#' @return max number of cores (integer)
+#' @export
+#'
+#' @examples n_cores_use = utils_detectCoresRAM(Gb_max=250,additional_Gb=1)
+utils_detectCoresRAM <- function(Gb_max=250,
                                 additional_Gb=1) {
-  #' @param Gb_max ceiling on session memory usage in Gb, assuming that each worker duplicates the session memory
-  #' @param additional_Gb: max additional memory requirement for new (temporary) objects created within a parallel session
-  #' @returns: max number of cores (integer)
-  #' @depends parallel package
-
-  require("parallel")
   obj_size_Gb <- as.numeric(sum(sapply(ls(envir = .GlobalEnv), function(x) object.size(x=eval(parse(text=x))))) / 1024^3)
   max(1, min(parallel::detectCores(), Gb_max %/% (obj_size_Gb + additional_Gb))-1)
 }
 
 
-
-f_verboseFnc <- function(fnc,
-                       args) {
-  #' @usage Function wrapper to show head of inputs and outputs
-  #' @param fnc: a function object
-  #' @param args: a list of named arguments
-  #' @value value returned by fnc, if any
-
+#' Wrapper to make a function more verbose
+#'
+#' @param fnc function to execute
+#' @param \dots named arguments to function
+#'
+#' @return value returned by fnc
+#' @export
+#'
+#' @examples utils_verboseFnc(rowSums, x=Matrix::Matrix(data=rnorm(9), nrow = r), na.rm = TRUE)
+utils_verboseFnc <- function(fnc,...) {
   # TODO: fix output to outfile. Currently NULL
   # TODO: deparse(substritute(fnc)) just prints fnc
 
   message(paste0("FUNCTION CALL: ", deparse(substitute(fnc))))
 
+  args = list(...)
   #if (!is.null(path_outFile)) cat(text = paste0("\nFUNCTION CALL: ", deparse(substitute(fnc))), file=path_outFile, append=T, sep="\n")
 
   message("ARGUMENTS:")
@@ -153,35 +158,28 @@ f_verboseFnc <- function(fnc,
 
 }
 
-#' @TODO add pander pandoc markdown output option?
-#' @TODO add MD5SUM save
-#' @TODO add overwrite argument
 
-saveMeta <- function(savefnc=NULL, doPrint=F, path_log=NULL, ...) {
-  #' @usage If savefnc provided, write a timestamped metadata file along with file; else write log anyway
-  #'        If path_log is not given, i.e. NULL, makes a file in the working directory
-  #'        Optionally print to screen
-  #'        Includes
-  #'         filename (if savefnc is not NULL) or else
-  #'         current date and time
-  #'         sessionInfo() #devtools::session_info()
-  #'         github log, if current or parent dir is a github dir
-  #' @param savefnc a function to write some file to disk. If given as object is converted to character, default NULL
-  #' @param doPrint print output to screen? useful if directin Rscript stdout to a log file (&>), default F
-  #' @param path_log specify log file path; defaults to creating a file in current working dir, default NULL
-  #  #' @param msg string,  message to add at the top of the log file
-  #' @param ... arguments to pass on to savefnc
-  #' @value NULL
-  #' @examples
-  #' saveMeta(savefnc= ggsave, plot=p, filename= "/projects/myname/RNAplot.pdf", height=10,width=12)
-  #' saveMeta(savefnc= save.image,  file= "/projects/myname/session.image.Rdata.gz", compress="gzip")
-  #' saveMeta(doPrint=T)
 
-  # packages
-  require(magrittr)
-  require(utils)
-  require(devtools) # for devtools::session_info()
-  #require(pander)
+#' Save file with metadata
+#'
+#' @description saves the following metadata
+#' . filename (if savefnc is not NULL) or else
+#' . current date and time
+#' . sessionInfo() #sessioninfo::session_info()
+#' . github log, if current or parent dir is a github dir
+#' @param savefnc a function to write some file to disk. If given as object is converted to character, default NULL
+#' @param doPrint print output to screen? useful if directin Rscript stdout to a log file (&>), default F
+#' @param path_log specify log file path; defaults to creating a file in current working dir, default NULL
+#' @param \dots named arguments to savefnc
+#'
+#' @return None
+#' @export
+#'
+#' @examples utils_saveMeta(savefnc=ggplot2::ggsave, doPrint=F, path_log = "~/log.txt", width=10)
+utils_saveMeta <- function(savefnc=NULL, doPrint=F, path_log=NULL, ...) {
+  #' TODO add pander pandoc markdown output option?
+  #' TODO add MD5SUM save
+  #' TODO add overwrite argument
 
   # check args
   if (is.null(savefnc) & is.null(path_log) & !doPrint) stop("saveMeta: savefnc and path_log are NULL and doPrint is FALSE, no output")
@@ -214,7 +212,7 @@ saveMeta <- function(savefnc=NULL, doPrint=F, path_log=NULL, ...) {
 
   # Write to log file
   # session_info()
-  utils::capture.output(devtools::session_info()) %>% writeLines(text=.,con = path_log) #this has to come first since writeLines doesn't append
+  utils::capture.output(sessioninfo::session_info()) %>% writeLines(text=.,con = path_log) #this has to come first since writeLines doesn't append
   #utils::capture.output(devtools::session_info()) %>% pander %>% cat(., file=path_log)
   cat("\n", file=path_log, append=T)
   cat(text="-Environment-----------------------------------", file=path_log, sep = "\n", append=T)
@@ -258,7 +256,7 @@ saveMeta <- function(savefnc=NULL, doPrint=F, path_log=NULL, ...) {
     #message(x = flag_date, appendLF = T)
     #if (!is.null(msg)) print(msg)
 
-    devtools::session_info() %>% print
+    sessioninfo::session_info() %>% print
 
     message("")
     print(x="-Environment-----------------------------------")

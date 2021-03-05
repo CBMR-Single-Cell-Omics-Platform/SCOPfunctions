@@ -18,28 +18,25 @@
 #' @param fontsize_legendtitle NULL to leave out
 #' @param fontsize_legendtext NULL to leave out
 #'
-#' @return a ggplot object
-#' @export TODO
+#' @return a ggplot2 object
+#' @export
 #'
-#' @examples TODO
-f_plot_bar_ident_group_composition = function(seurat_obj,
-                                          var_ident,
-                                          var_group,
-                                          vec_group_colors=NULL,
-                                          f_color=colorRampPalette(brewer.pal(n=11, name="RdYlBu")),
-                                          do_plot = F,
-                                          title = NULL,
-                                          fontsize_title = 24,
-                                          fontsize_axistitle_x = 18,
-                                          fontsize_axistitle_y = 18,
-                                          fontsize_axistext_x = 12,
-                                          fontsize_axistext_y = 12,
-                                          fontsize_legendtitle = 12,
-                                          fontsize_legendtext = 10,
-                                          aspect.ratio=1.2) {
-
-  stopifnot(require("data.table"))
-  stopifnot(require("ggplot2"))
+#' @examples p <- plot_barIdentGroup(seurat_obj=seu, var_ident="sample",var_group="cluster")
+plot_barIdentGroup = function(seurat_obj,
+                              var_ident,
+                              var_group,
+                              vec_group_colors=NULL,
+                              f_color=colorRampPalette(brewer.pal(n=11, name="RdYlBu")),
+                              do_plot = F,
+                              title = NULL,
+                              fontsize_title = 24,
+                              fontsize_axistitle_x = 18,
+                              fontsize_axistitle_y = 18,
+                              fontsize_axistext_x = 12,
+                              fontsize_axistext_y = 12,
+                              fontsize_legendtitle = 12,
+                              fontsize_legendtext = 10,
+                              aspect.ratio=1.2) {
 
   #===============data.table with sums==================
   dt = data.table("ident" = as.character(seurat_obj@meta.data[[var_ident]]),
@@ -91,7 +88,7 @@ f_plot_bar_ident_group_composition = function(seurat_obj,
 }
 
 
-#' violin plot grid
+#' Make grid of violin plots
 #'
 #' produce a n_cluster * n_feature grid of violin plots
 #'
@@ -106,30 +103,25 @@ f_plot_bar_ident_group_composition = function(seurat_obj,
 #' @param do_plot  Whether to plot, logical
 #' @param pt.size size of jitter in the violin plots. Set to 0 (default) to omit
 #'
-#' @return ggplot object
+#' @return ggplot2 object
 #' @export
 #'
-#' @examples
-f_plot_vln_grid = function(seurat_obj,
-                            assay,
-                            slot,
-                            var_group,
-                            vec_features,
-                            vec_group_colors,
-                            f_color = colorRampPalette(brewer.pal(n=11, name="RdYlBu")),
-                            flip = T,
-                            do_plot = F,
-                            pt.size = 0,
-                            feature_fontface = "bold.italic",
-                            fontsize_axistext_x=12,
-                            fontsize_axistext_y=12,
-                            aspect.ratio =NULL
-                           ) {
-
-  stopifnot(require("data.table"))
-  stopifnot(require("Seurat"))
-  stopifnot(require("patchwork"))
-
+#' @examples p <- plot_vlnGrid(seurat_obj=seu, assay="RNA", slot="data", var_group="cluster", vec_features=head(VariableFeatures(seu)))
+plot_vlnGrid = function(seurat_obj,
+                        assay,
+                        slot,
+                        var_group,
+                        vec_features,
+                        vec_group_colors=NULL,
+                        f_color = colorRampPalette(brewer.pal(n=11, name="RdYlBu")),
+                        flip = T,
+                        do_plot = F,
+                        pt.size = 0,
+                        feature_fontface = "bold.italic",
+                        fontsize_axistext_x=12,
+                        fontsize_axistext_y=12,
+                        aspect.ratio =NULL
+                       ) {
 
   #=============prepare group and colors==================
   seurat_obj_tmp = seurat_obj
