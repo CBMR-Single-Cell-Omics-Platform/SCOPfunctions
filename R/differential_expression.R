@@ -19,9 +19,7 @@ FoldChange.default <- function(
   features = NULL,
   ...
 ) {
-  if (!"matrix" %in% class(data)) {
-    data = as.matrix(data)
-  }
+
   features <- if (is.null(features)) rownames(data) else features
   # Calculate percent expressed
   thresh.min <- 0
@@ -49,9 +47,11 @@ FoldChange.default <- function(
 #' Based on Seurat::FindMarkers MAST test but with a single random effects variable
 #'
 #' @param object Seurat >=3 object
-#' @param random_effect.var Random effects to add in MAST model i.e. (1|random_effect.var) .
+#' @param random_effect.vars Character vector of variables to add as random intersects in MAST model i.e. ~ ...  + (1|random_effect.var1) + (1|random_effect.var2)
 #' @param ident.1 Identity class to define markers for
 #' @param ident.2 A second identity class for comparison. Leave as NULL to compare with all other cells
+#' @param cells.1 Vector of cell names belonging to group 1. Alternative way to specify ident.1
+#' @param cells.2 Vector of cell names belonging to group 2. Alternative way to specify ident.2
 #' @param logfc.threshold Only return results with a DE exceeding threshold
 #' @param base base for log when computing mean and for output, default exp(1). NB: Seurat has changed to log2 in V4.
 #' @param group.by Regroup cells into a different identity class prior to performing differential expression
@@ -82,9 +82,11 @@ FoldChange.default <- function(
 #' . Seurat 3 source at https://github.com/satijalab/seurat/blob/master/R/differential_expression.R
 DE_MAST_RE_seurat = function(
   object,
-  random_effect.var,
-  ident.1,
+  random_effect.vars,
+  ident.1 = NULL,
   ident.2 = NULL,
+  cells.1 = NULL,
+  cells.2 = NULL,
   group.by = NULL,
   logfc.threshold = 0.25,
   base = exp(1),
@@ -108,11 +110,15 @@ DE_MAST_RE_seurat = function(
     on.exit(options(op), add = T)
   }
 
+  if (is.null(c(ident.1, ident.2, cells.1, cells.2))) stop("at least one of ident.1, ident.2, cells.1, cells.2 must be provided")
+  if (!is.null(ident.1) & !is.null(cells.1)) stop("Provide one of ident.1 or cells.1 but not both")
+  if (!is.null(ident.2) & !is.null(cells.2)) stop("Provide one of ident.2 or cells.2 but not both")
+
   fc.name  <- if (base == exp(1)) "avg_logFC" else paste0("avg_log", base, "FC")
   #======== check inputs ========================================
 
-  stopifnot(!is.null(random_effect.var))
-  stopifnot(random_effect.var %in% colnames(object@meta.data))
+  stopifnot(!is.null(random_effect.vars))
+  stopifnot(all(random_effect.vars %in% colnames(object@meta.data)))
 
   if (slot != "data") warning(paste0("MAST uses the logNormalised counts which are usually in the 'data' slot, but you are using ",slot))
 
@@ -120,17 +126,20 @@ DE_MAST_RE_seurat = function(
   if (verbose) message(paste0("using ", round(base,2), " as log base. Make sure that the data slot has been log-transformed using this base"))
   #======== resolve idents and get cells ===================
 
-  logical.cells.1 = if (!is.null(group.by)) {object@meta.data[[group.by]] == ident.1} else {Seurat::Idents(object) == ident.1}
+  anyNA = if (!is.null(group.by)) any(is.na(object@meta.data[[group.by]])) else any(is.na(Seurat::Idents(object)))
+  if (anyNA) stop("Some identities are NA, please check the metadata")
+
+  logical.cells.1 = if (!is.null(cells.1)) colnames(object) %in% cells.1 else { if (!is.null(group.by)) {object@meta.data[[group.by]] == ident.1} else {Seurat::Idents(object) == ident.1}}
   if (sum(logical.cells.1)==0) {
     stop("no cells found matching ident.1. Did you forget to set Idents(object) or use group.by?")
   }
-  logical.cells.2 = if (is.null(ident.2)) {!logical.cells.1} else {if (!is.null(group.by)) {object@meta.data[[group.by]] == ident.2} else {Seurat::Idents(object) == ident.2}}
+  if (is.null(cells.1)) cells.1 = colnames(object)[logical.cells.1]
+
+  logical.cells.2 = if (!is.null(cells.2)) colnames(object) %in% cells.2 else {if (is.null(ident.2)) {!logical.cells.1} else {if (!is.null(group.by)) {object@meta.data[[group.by]] == ident.2} else {Seurat::Idents(object) == ident.2}}}
   if (sum(logical.cells.2)==0) {
     stop("no cells found matching ident.2. Did you forget to set Idents(object) or use group.by?")
   }
-
-  cells.1 = colnames(object)[logical.cells.1]
-  cells.2 = colnames(object)[logical.cells.2]
+  if (is.null(cells.2)) cells.2 = colnames(object)[logical.cells.2]
 
   #======== features =================================
 
@@ -143,7 +152,7 @@ DE_MAST_RE_seurat = function(
   features = features[features %in% rownames(object)]
   vec_logical_features = rep(T, length(features))
 
-  data = as.matrix(Seurat::GetAssayData(object = object, assay=assay, slot=slot))
+  data = Seurat::GetAssayData(object = object, assay=assay, slot=slot)
 
   # compute average log fold change
   pseudocount.use = 1
@@ -215,17 +224,29 @@ DE_MAST_RE_seurat = function(
     }
   }
 
-  # random var
-  df_coldata[[random_effect.var]] <- as.factor(object@meta.data[c(idx.cells.1,idx.cells.2),
-                                                                random_effect.var])
+  # add random vars to column data
+  for (random_effect.var in random_effect.vars) {
+    df_coldata[[random_effect.var]] <- as.factor(
+        object@meta.data[c(idx.cells.1,idx.cells.2),random_effect.var]
+      )
+  }
+
+  # check for NAs in column data
+  for (colname in colnames(df_coldata)) {
+    if (any(is.na(df_coldata[[colname]]))) {
+      stop(paste0("variable '", colname, "' contains NAs"))
+    }
+  }
 
   # check whether random var levels overlap entirely with test condition
-  for (re_lvl in levels(df_coldata[[random_effect.var]])) {
-    if (all(df_coldata[[random_effect.var]]==re_lvl & 1:ncol(data) %in% idx.cells.1)) {
-      stop(paste0("random_effect.var level ", re_lvl, " overlaps entirely with ident.1"))
-    }
-    else if (all(df_coldata[[random_effect.var]]==re_lvl & 1:ncol(data) %in% idx.cells.2)) {
-      stop(paste0("random_effect.var level ", re_lvl, " overlaps entirely with ident.2"))
+  for (random_effect.var in random_effect.vars) {
+    for (re_lvl in levels(df_coldata[[random_effect.var]])) {
+      if (all(df_coldata[[random_effect.var]]==re_lvl & 1:ncol(data) %in% idx.cells.1)) {
+        stop(paste0(random_effect.var, " level ", re_lvl, " overlaps entirely with ident.1. Increase ", max.cells.per.ident, " or check the data"))
+      }
+      else if (all(df_coldata[[random_effect.var]]==re_lvl & 1:ncol(data) %in% idx.cells.2)) {
+        stop(paste0(random_effect.var, " level ", re_lvl, " overlaps entirely with ident.2. Increase ", max.cells.per.ident, " or check the data"))
+      }
     }
   }
 
@@ -235,7 +256,9 @@ DE_MAST_RE_seurat = function(
 
   #======== prep SingleCellAssay object ============================
 
-  expr = quote(MAST::FromMatrix(exprsArray=as.matrix(data),
+  densemat = big_as.matrix(data, n_slices_init = 1, verbose=F)
+
+  expr = quote(MAST::FromMatrix(exprsArray=densemat,
                                  check_sanity = TRUE,
                                  cData=df_coldata,
                                  fData=df_feature))
@@ -256,8 +279,9 @@ DE_MAST_RE_seurat = function(
   #======== run MAST test ======================
 
   str_plus = if (!is.null(latent.vars)) " + " else ""
+
   fmla <- as.formula(
-    object = paste0(" ~ group", str_plus, paste(latent.vars, collapse = "+"), " + (1|", random_effect.var, ")")
+    object = paste0(" ~ group", str_plus, paste(latent.vars, collapse = " + "), paste(" + (1 |", random_effect.vars, ")", collapse=""))
   )
 
   # fit model parameters
@@ -276,7 +300,7 @@ DE_MAST_RE_seurat = function(
   }
   # call a likelihood ratio test on the fitted object
   expr = quote(summary(object = zlmCond, doLRT = 'groupGroup1'))
-  summaryCond <- if (verbose) eval(expr) else suppressMessages(eval(expr))
+  summaryCond <- if (verbose) eval(expr) else suppressWarnings(suppressMessages(eval(expr)))
 
   # print(summaryCond,n=4)
   # Fitted zlm with top 4 genes per contrast:
@@ -317,3 +341,5 @@ DE_MAST_RE_seurat = function(
 
   return(de.results)
 }
+
+
