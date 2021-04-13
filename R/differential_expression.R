@@ -44,9 +44,9 @@ FoldChange.default <- function(
 
 #' MAST differential expression test with random effect for Seurat object
 #'
-#' Based on Seurat::FindMarkers MAST test but with a single random effects variable
+#' Uses Seurat::FindMarkers MAST test hurdle model with added random effects variables
 #'
-#' @param object Seurat >=3 object
+#' @param object Seurat >=3 object, with log-normalized data in the `data` slot
 #' @param random_effect.vars Character vector of variables to add as random intersects in MAST model i.e. ~ ...  + (1|random_effect.var1) + (1|random_effect.var2)
 #' @param ident.1 Identity class to define markers for
 #' @param ident.2 A second identity class for comparison. Leave as NULL to compare with all other cells
@@ -59,7 +59,7 @@ FoldChange.default <- function(
 #' @param slot Slot to pull data from; defaults to "data" as MAST expects log-normalized data
 #' @param features Genes to test. Default is to use all genes
 #' @param min.pct Only test genes that are detected in a minimum fraction of min.pct cells in either of the two populations. Meant to speed up the function by not testing genes that are very infrequently expressed. Default is 0.1
-#' @param max.cells.per.ident Down sample each identity class to a max number. Default is no downsampling. Not activated by default (set to Inf)
+#' @param max.cells.per.ident Downsample each identity class to a max number. Default is no downsampling. Not activated by default (set to Inf)
 #' @param random.seed Random seed to use for down sampling
 #' @param latent.vars Variables to test
 #' @param n_cores How many cores to use (temporarily sets options(mc.cores=n_cores))
@@ -70,6 +70,7 @@ FoldChange.default <- function(
 #' @export
 #'
 #' @examples
+#' df_test1 <- DE_MAST_RE_seurat(object = seu,random_effect.vars = "HTO_classification", ident.1 = "KO", group.by = "genotype")
 #'
 #' @references Zimmerman, K.D., Espeland, M.A. & Langefeld, C.D.
 #' . A practical solution to pseudoreplication bias in single-cell studies.
@@ -154,6 +155,8 @@ DE_MAST_RE_seurat = function(
 
   data = Seurat::GetAssayData(object = object, assay=assay, slot=slot)
 
+  densemat = utils_big_as.matrix(data, n_slices_init = 1, verbose=F)
+
   # compute average log fold change
   pseudocount.use = 1
   mean.fxn = function(x) {
@@ -161,7 +164,7 @@ DE_MAST_RE_seurat = function(
   }
   # outputs a data.frame with columns fc.name, "pct.1", "pct.2"
   fc.results = FoldChange.default(
-      data=data,
+      data=densemat,
       cells.1=cells.1,
       cells.2=cells.2,
       mean.fxn=mean.fxn,
@@ -179,7 +182,7 @@ DE_MAST_RE_seurat = function(
 
   features <- features[vec_logical_features]
 
-  data = data[rownames(data) %in% features, , drop=F]
+  densemat = densemat[rownames(densemat) %in% features, , drop=F]
 
   #======== down sample cells ==============================
 
@@ -197,13 +200,13 @@ DE_MAST_RE_seurat = function(
     }
   }
 
-  cells.1 = colnames(data)[idx.cells.1]
-  cells.2 = colnames(data)[idx.cells.2]
-  data = data[,c(idx.cells.1,idx.cells.2), drop=F]
+  cells.1 = colnames(densemat)[idx.cells.1]
+  cells.2 = colnames(densemat)[idx.cells.2]
+  densemat = densemat[,c(idx.cells.1,idx.cells.2), drop=F]
 
   #======== filter out all zero features (if not already removed) ==
 
-  data = data[apply(X = data, MARGIN=1, FUN = sum)>0,]
+  densemat = densemat[apply(X = densemat, MARGIN=1, FUN = sum)>0,]
 
   #======== prep column (cell/sample) data =================
 
@@ -241,10 +244,10 @@ DE_MAST_RE_seurat = function(
   # check whether random var levels overlap entirely with test condition
   for (random_effect.var in random_effect.vars) {
     for (re_lvl in levels(df_coldata[[random_effect.var]])) {
-      if (all(df_coldata[[random_effect.var]]==re_lvl & 1:ncol(data) %in% idx.cells.1)) {
+      if (all(df_coldata[[random_effect.var]]==re_lvl & 1:ncol(densemat) %in% idx.cells.1)) {
         stop(paste0(random_effect.var, " level ", re_lvl, " overlaps entirely with ident.1. Increase ", max.cells.per.ident, " or check the data"))
       }
-      else if (all(df_coldata[[random_effect.var]]==re_lvl & 1:ncol(data) %in% idx.cells.2)) {
+      else if (all(df_coldata[[random_effect.var]]==re_lvl & 1:ncol(densemat) %in% idx.cells.2)) {
         stop(paste0(random_effect.var, " level ", re_lvl, " overlaps entirely with ident.2. Increase ", max.cells.per.ident, " or check the data"))
       }
     }
@@ -252,11 +255,9 @@ DE_MAST_RE_seurat = function(
 
   #======== prep  feature data =========================
 
-  df_feature = data.frame("primerid"=rownames(data)) # primerid is hardcoded feature name in MAST
+  df_feature = data.frame("primerid"=rownames(densemat)) # primerid is hardcoded feature name in MAST
 
   #======== prep SingleCellAssay object ============================
-
-  densemat = big_as.matrix(data, n_slices_init = 1, verbose=F)
 
   expr = quote(MAST::FromMatrix(exprsArray=densemat,
                                  check_sanity = TRUE,
@@ -299,7 +300,7 @@ DE_MAST_RE_seurat = function(
     message("Compute likelihoods and p-values")
   }
   # call a likelihood ratio test on the fitted object
-  expr = quote(summary(object = zlmCond, doLRT = 'groupGroup1'))
+  expr = quote(MAST::summary(object = zlmCond, doLRT = 'groupGroup1'))
   summaryCond <- if (verbose) eval(expr) else suppressWarnings(suppressMessages(eval(expr)))
 
   # print(summaryCond,n=4)
@@ -333,13 +334,109 @@ DE_MAST_RE_seurat = function(
   de.results <- data.frame(
     "p_val" = summaryCond$datatable[contrast=='groupGroup1' & component=='H', `Pr(>Chisq)`],
     fc.results[vec_logical_features,])  #setDF(summaryCond$datatable[contrast=='groupGroup1' & component=='logFC', .(coef)])
-  #colnames(df_out)[1] = fc.name
+
   de.results$p_val_adj = p.adjust(de.results$p_val, method=p.adjust.method, n=length(vec_logical_features))
-  #rownames(df_out) = summaryCond$datatable[contrast=='groupGroup1' & component=='H', primerid]
+
 
   de.results = de.results[order(de.results$p_val, -de.results[[fc.name]]),]
 
   return(de.results)
 }
 
+
+##' .. content for \description{
+##' goal of this function is to find genes that are specifically expressed in each cluster, it is also
+##' significantly faster than the FindMarkers function from Seurat
+##' } (no empty lines) ..
+##'
+##' .. content for \details{
+##' pseudobulk calculation inspired by: https://jef.works/blog/2020/04/06/quickly-creating-pseudobulks/
+##' weighted log odds from: https://github.com/juliasilge/tidylo
+##' }
+##'
+##' @title
+##' @param srt seurat object
+##' @param group define groups which you want to split; default is srt ident
+##' @param compare vector of groups you want to compare #add in
+##' @return
+##' @author dylanmr
+##' @export
+
+require(tidylo)
+
+.countsperclus <- function(object, group=group, min.cell=100) {
+  if(is.null(group)) {
+    vec <- factor(as.character(Idents(object)))
+  } else {
+    vec <- factor(object@meta.data[[group]])
+  }
+  mat.sparse <- object@assays$SCT@counts
+  mm <- model.matrix(~ 0 + vec)
+  colnames(mm) <- paste0("clus_", levels(vec))
+  mm <- mm[,colSums(mm)>min.cell]
+  mat.sum <- mat.sparse %*% mm
+  keep <-  Matrix::rowSums(mat.sum > 0) >= ncol(mat.sum)/3
+  mat.sum <- mat.sum[keep, ]
+  return(mat.sum)
+}
+
+
+DE_calcWLO <- function(
+  object,
+  prior,
+  group= NULL,
+  id1 = NULL,
+  id2 = NULL,
+  ...) {
+
+  cpg <- .countsperclus(object, group = group, ...)
+
+  if(grepl("un", prior)) {
+    cpg <-
+      cpg %>%
+      as.data.frame() %>%
+      rownames_to_column("gene") %>%
+      pivot_longer(-gene) %>%
+      dplyr::rename(group = name) %>%
+      mutate(group = as.factor(group))
+
+    if(is.null(id1)) {
+      cpg %>%
+        bind_log_odds(set = group, feature = gene, n = value,
+                      uninformative = TRUE, unweighted = TRUE) -> dat
+    } else if(!is.null(id1)) {
+      if(is.null(id2)) {
+        id1 <- paste0("clus_", id1)
+        cpg %>%
+          mutate(group = if_else(group == id1, "group_1", "group_2")) %>%
+          group_by(gene, group) %>%
+          summarise(value = sum(value)) %>%
+          bind_log_odds(set = group, feature = gene, n = value,
+                        uninformative = TRUE, unweighted = TRUE) -> dat
+      } else {
+        id1 <- paste0("clus_", id1)
+        id2 <- paste0("clus_", id2)
+        cpg %>%
+          mutate(group = case_when(group %in% id1 ~ "group_1",
+                                   group %in% id2 ~ "group_2",
+                                   T ~ "remove")) %>%
+          group_by(gene, group) %>%
+          summarise(value = sum(value)) %>%
+          filter(group!="remove") %>%
+          bind_log_odds(set = group, feature = gene, n = value,
+                        uninformative = TRUE, unweighted = TRUE) -> dat
+      }
+    }
+  } else {
+    cpg %>%
+      as.data.frame() %>%
+      rownames_to_column("gene") %>%
+      pivot_longer(-gene) %>%
+      dplyr::rename(group = name) %>%
+      mutate(group = as.factor(group)) %>%
+      bind_log_odds(set = group, feature = gene, n = value) -> dat
+  }
+
+  return(dat)
+}
 
