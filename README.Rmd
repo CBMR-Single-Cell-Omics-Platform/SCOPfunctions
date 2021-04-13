@@ -24,7 +24,7 @@ An R package of functions for single cell -omics analysis. Mostly wrappers aroun
 
 You can install the development version of SCOPfunctions with:
 
-```{r}
+```
 devtools::install_github("CBMR-Single-Cell-Omics-Platform/SCOPfunctions")
 ```
 

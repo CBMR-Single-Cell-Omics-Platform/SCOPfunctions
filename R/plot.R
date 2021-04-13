@@ -232,8 +232,6 @@ plot_network = function(
 
   df_hub.data <- cbind.data.frame(gene = names(vec_geneImportance), importance = vec_geneImportance)
 
-  # hub.data$logfc <- DEGs$log2FoldChange[match(hub.data$gene, rownames(DEGs))]
-  # hub.data$p.adj <- DEGs$padj[match(hub.data$gene, rownames(DEGs))]
   mat_adj %>%
     graph.adjacency(mode = "undirected", weighted = T, diag = FALSE) %>%
     tidygraph::as_tbl_graph() %>% upgrade_graph() %>% activate(nodes) %>%
