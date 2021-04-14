@@ -95,6 +95,7 @@ plot_barIdentGroup(seurat_obj,
                     f_color=colorRampPalette(brewer.pal(n=11, name="RdYlBu")),
                     do_plot = F)
 ```
+![networkplot](./assets/barplot.png)
 
 plot a cluster * feature grid of gene expression violin plots
 
@@ -107,6 +108,8 @@ plot_vlnGrid(seurat_obj,
               vec_group_colors=NULL,
               f_color = colorRampPalette(brewer.pal(n=11, name="RdYlBu"))
 ```
+
+![networkplot](./assets/vlnplot.png)
 
 make a network plot of a set of co-expressed features
 

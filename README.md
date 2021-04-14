@@ -71,6 +71,8 @@ plot the distribution of cell clusters in different samples
                         f_color=colorRampPalette(brewer.pal(n=11, name="RdYlBu")),
                         do_plot = F)
 
+![networkplot](./assets/barplot.png)
+
 plot a cluster \* feature grid of gene expression violin plots
 
     # Here we just use the top variable genes, but normally we would use cluster marker genes
@@ -80,6 +82,8 @@ plot a cluster \* feature grid of gene expression violin plots
                   vec_features=head(VariableFeatures(seurat_obj),n=15),
                   vec_group_colors=NULL,
                   f_color = colorRampPalette(brewer.pal(n=11, name="RdYlBu"))
+
+![networkplot](./assets/vlnplot.png)
 
 make a network plot of a set of co-expressed features
 
