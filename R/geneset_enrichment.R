@@ -11,12 +11,10 @@
 #'
 #' @references modified from https://rdrr.io/bioc/qusage/src/R/qusage.R
 #' . drawing on https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3458527/
-#' @examples list_vec_VIF <- f_VIF(datExpr=mat_counts, list_genesets=mylist)
-f_VIF <- function(datExpr, list_genesets) {
+#' @examples list_vec_VIF <- geneset_VIF(datExpr=mat_counts, list_genesets=mylist)
+geneset_VIF <- function(datExpr, list_genesets) {
   list_vec_vif = lapply(names(list_genesets), function(genesetname) {
     vec_logicalgenes <-rownames(datExpr) %in% list_genesets[[genesetname]]
-    #GNames <- rownames(datExpr)[vec_logicalgenes]
-    #gs.i = which(vec_logicalgenes)
     if (sum(vec_logicalgenes) < 2) {
       warning("GeneSet '", genesetname, "' contains one or zero overlapping genes. NAs produced.")
       return(c("vif"=NA, "mean.cor"=NA))
@@ -24,7 +22,6 @@ f_VIF <- function(datExpr, list_genesets) {
     cor.mat <- cor(t(datExpr[vec_logicalgenes, ]), use = "pairwise.complete.obs")
     cor.mat[is.na(cor.mat)] <- 0
     (cor.mat - Diagonal(x = diag(cor.mat))) %>% mean -> mean.cor
-
     vif <- 1+(sum(vec_logicalgenes)-1)*mean.cor
     return(c("vif"=vif, "mean.cor"=mean.cor))
   })
