@@ -104,6 +104,9 @@ DE_MAST_RE_seurat = function(
   ...
 ) {
 
+  require(Seurat)
+  require(MAST)
+
   if (!is.null(n_cores)) {
     # https://www.tidyverse.org/blog/2020/04/self-cleaning-test-fixtures/#the-onexit-pattern
     # set new value and capture old in op
@@ -123,7 +126,6 @@ DE_MAST_RE_seurat = function(
 
   if (slot != "data") warning(paste0("MAST uses the logNormalised counts which are usually in the 'data' slot, but you are using ",slot))
 
-  if (verbose) message("preparing data")
   if (verbose) message(paste0("using ", round(base,2), " as log base. Make sure that the data slot has been log-transformed using this base"))
   #======== resolve idents and get cells ===================
 
@@ -303,6 +305,7 @@ DE_MAST_RE_seurat = function(
   expr = quote(MAST::summary(object = zlmCond, doLRT = 'groupGroup1'))
   summaryCond <- if (verbose) eval(expr) else suppressWarnings(suppressMessages(eval(expr)))
 
+  if ("character" %in% class(summaryCond)) stop("No differentially genes detected")
   # print(summaryCond,n=4)
   # Fitted zlm with top 4 genes per contrast:
   #   ( log fold change Z-score )
