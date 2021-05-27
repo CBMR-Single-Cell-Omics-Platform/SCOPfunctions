@@ -7,16 +7,16 @@
 
 <!-- badges: end -->
 
-An R package of functions for single cell -omics analysis. Mostly
-wrappers around Seurat and Bioconductor packages.
+An R package of functions for single cell -omics analysis. Fits into
+Seurat workflow.
 
 ## Install
 
-Install using devtools:
+### Install using devtools:
 
     devtools::install_github("CBMR-Single-Cell-Omics-Platform/SCOPfunctions")
 
-Manually:
+### install manually
 
     git clone https://www.github.com/CBMR-Single-Cell-Omics-Platform/SCOPfunctions.git 
 
@@ -27,51 +27,105 @@ then from R:
 ## Usage
 
     library("SCOPfunctions")
+    library("Seurat")
+
+Download the example data used in the Seurat hashing vignette at
+<https://satijalab.org/seurat/archive/v3.1/hashing_vignette.html>
+
+Follow the initial steps of the hashing vignette up till and including
+the HTO normalization
 
 ### Preprocess
 
-generate a seurat object from kallisto output
+Generate an area plot showing how proportions of singlets, doublets and
+negatives vary with the positive quantile
 
-    seurat_obj <- SCOPfunctions::kallisto_to_seu(
-                    spliced_dir,
-                    spliced_name,
-                    unspliced_dir,
-                    unspliced_name)
+    p_quantile = SCOPfunctions::prep_HTO_q_area_plot(
+      seurat_obj=pbmc.hashtag,
+      vec_range_quantile=seq(0.8,0.99,0.01),
+      n_cores_max=Inf
+    ) 
 
-Identify optimal cut-off quantile for demultiplexing hash tag oligos
-with Seurat::HTOdemux()
+![areaplot](./assets/areaplot.png) infer intra-hash doublets
 
-    HTO_positive.threshold(
-      seurat_obj,
-      range=seq(from=0.7,to=1, by=0.01),
-      assay = "hto",
-      do_plot=TRUE
-      ) 
+    # First demultiplex hashtags 
+    q = 0.98
+    pbmc.hashtag = Seurat::HTOdemux(pbmc.hashtag,assay = "HTO", positive.quantile = q)
+    
+    # use inter-hash doublets to infer intra-hash doublets
+    pbmc.hashtag = SCOPfunctions::prep_intrahash_doub(
+      seurat_obj=pbmc.hashtag,
+      assay = "RNA",
+      npcs=20,
+      randomSeed = 12345
+    ) 
 
-identify and remove cell-cycle effects
+Do QC on RNA assay
 
-    TODO
+    pbmc.hashtag  = prep_qc_rna(
+      seurat_obj=pbmc.hashtag,
+      assay = "RNA"
+      )
 
-### Reduce dimensions
+### Differential expression
 
-estimate the optimal number of dimensions to use for PCA and downstream
+``` 
 
-    estimate_dims(x=seurat_obj,
-                  max_dim=75,
-                  seed.use=12345)
+# first find clusters (after normalizing the RNA, finding variable features and scaling the data - not shown)
+pbmc.hashtag <- FindNeighbors(pbmc.hashtag, reduction = "pca", dims = 1:20)
+pbmc.hashtag <- FindClusters(pbmc.hashtag, resolution = 10, verbose = FALSE)
 
-### Plot
+# find DE genes for cluster 0
+df_DE = SCOPfunctions::DE_MAST_RE_seurat(
+  object=pbmc.hashtag,
+  random_effect.vars="hash.ID",
+  test.use = "MAST",
+  ident.1 = "0",
+  group.by = "seurat_clusters"
+)
+```
+
+find the activity values for a geneset
+
+``` 
+
+# as an example, just use the top DE genes for cluster 0
+vec_geneWeights <- seq(from = 1, to = 0.1, by = -0.1)
+vec_geneWeights <- vec_geneWeights/sum(vec_geneWeights)
+
+names(vec_geneWeights) =  head(rownames(df_DE), 10)
+
+pbmc.hashtag$my_geneset_embeddings <- geneset_embed(
+  mat_datExpr = as.matrix(GetAssayData(pbmc.hashtag, slot="scale.data", assay="SCT")),
+  vec_geneWeights=vec_geneWeights,
+  min_feats_present = 5)
+```
+
+find the activity values for a list of genesets
+
+``` 
+
+pbmc.hashtag <- geneset_embed_list_seurat(
+  seurat_obj = pbmc.hashtag,
+  list_vec_geneWeights=list_vec_geneWeights,
+  slot="scale.data",
+  assay="SCT",
+  min_feats_present = 5,
+  n_cores_max = Inf)
+```
+
+### Plot results
 
 plot the distribution of cell clusters in different samples
 
-    plot_barIdentGroup(seurat_obj,
+    plot_barIdentGroup(seurat_obj=pbmc.hashtag,
                         var_ident="sample_ID",
                         var_group="cluster",
                         vec_group_colors=NULL,
                         f_color=colorRampPalette(brewer.pal(n=11, name="RdYlBu")),
                         do_plot = F)
 
-![networkplot](./assets/barplot.png)
+![barplot](./assets/barplot.png)
 
 plot a cluster \* feature grid of gene expression violin plots
 
@@ -81,13 +135,13 @@ plot a cluster \* feature grid of gene expression violin plots
                   var_group="cluster",
                   vec_features=head(VariableFeatures(seurat_obj),n=15),
                   vec_group_colors=NULL,
-                  f_color = colorRampPalette(brewer.pal(n=11, name="RdYlBu"))
+                  f_color = colorRampPalette(brewer.pal(n=11, name="RdYlBu")))
 
-![networkplot](./assets/vlnplot.png)
+![vlnplot](./assets/vlnplot.png)
 
 make a network plot of a set of co-expressed features
 
-    plot_network(
+    SCOPfunctions::plot_network(
       mat_datExpr=as.matrix(GetAssayData(seurat_obj, slot="data")),
       vec_geneImportance=vec_geneImportance,
       vec_genes_highlight=c(),
@@ -96,6 +150,8 @@ make a network plot of a set of co-expressed features
       fontface_labels="bold.italic",
       color_edge = "grey70",
       edge_thickness = 1)
+
+![networkplot](./assets/networkplot.png)
 
 ## Contribute
 

@@ -3,8 +3,8 @@ Type: Package
 Title: Single Cell Omics Platform Functions
 Version: 0.0.0.9000
 Author: CBMR Single Cell Omics Platform (SCOP)
-Maintainer: SCOP cbmr@sund.ku.dk
-Description: Specialized functions for single cell 'omics analyses and plotting
+Maintainer: Jonatan Thompson <rkm916@ku.dk>
+Description: Specialized functions for single cell 'omics analyses and plotting.
 License: AGPL (>= 3)
 Encoding: UTF-8
 LazyData: true

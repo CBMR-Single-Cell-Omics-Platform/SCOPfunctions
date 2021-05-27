@@ -10,7 +10,7 @@
 #' @concept differential_expression
 #' @method FoldChange default
 #' @references Copied from Seurat 3 source at https://github.com/satijalab/seurat/blob/master/R/differential_expression.R
-FoldChange.default <- function(
+.FoldChange.default <- function(
   data,
   cells.1,
   cells.2,
@@ -69,9 +69,6 @@ FoldChange.default <- function(
 #' @return data.frame with column names p_val, avg_log[base]FC, pct.1, pct.2, p_val_adj (identical format to Seurat::FindMarkers)
 #' @export
 #'
-#' @examples
-#' df_test1 <- DE_MAST_RE_seurat(object = seu,random_effect.vars = "HTO_classification", ident.1 = "KO", group.by = "genotype")
-#'
 #' @references Zimmerman, K.D., Espeland, M.A. & Langefeld, C.D.
 #' . A practical solution to pseudoreplication bias in single-cell studies.
 #' . Nat Commun 12, 738 (2021). https://doi.org/10.1038/s41467-021-21038-1
@@ -84,7 +81,6 @@ FoldChange.default <- function(
 DE_MAST_RE_seurat = function(
   object,
   random_effect.vars,
-  test.use = "MAST",
   ident.1 = NULL,
   ident.2 = NULL,
   cells.1 = NULL,
@@ -105,8 +101,8 @@ DE_MAST_RE_seurat = function(
   ...
 ) {
 
-  require(Seurat)
-  require(MAST)
+  # require(Seurat)
+  # require(MAST)
 
   if (!is.null(n_cores)) {
     # https://www.tidyverse.org/blog/2020/04/self-cleaning-test-fixtures/#the-onexit-pattern
@@ -166,7 +162,7 @@ DE_MAST_RE_seurat = function(
     return(log(x = rowMeans(x = expm1(x = x)) + pseudocount.use, base = base))
   }
   # outputs a data.frame with columns fc.name, "pct.1", "pct.2"
-  fc.results = FoldChange.default(
+  fc.results = .FoldChange.default(
       data=densemat,
       cells.1=cells.1,
       cells.2=cells.2,
@@ -211,148 +207,145 @@ DE_MAST_RE_seurat = function(
 
   densemat = densemat[apply(X = densemat, MARGIN=1, FUN = sum)>0,]
 
-  if (test.use=="MAST") {
-    #======== prep column (cell/sample) data =================
+  #======== prep column (cell/sample) data =================
 
-    df_coldata = data.frame(
-      row.names = c(cells.1, cells.2),
-      "wellKey" = c(cells.1, cells.2)
-      ) # wellKey is hardcoded feature name in MAST
+  df_coldata = data.frame(
+    row.names = c(cells.1, cells.2),
+    "wellKey" = c(cells.1, cells.2)
+    ) # wellKey is hardcoded feature name in MAST
 
-    # DE group factor
-    df_coldata[cells.1, "group"] <- "Group1"
-    df_coldata[cells.2, "group"] <- "Group2"
-    df_coldata[, "group"] <- factor(x = df_coldata[, "group"])
+  # DE group factor
+  df_coldata[cells.1, "group"] <- "Group1"
+  df_coldata[cells.2, "group"] <- "Group2"
+  df_coldata[, "group"] <- factor(x = df_coldata[, "group"])
 
-    # latent vars
-    if (!is.null(latent.vars)) {
-      for (latent.var in latent.vars) {
-        df_coldata[[latent.var]] <- object@meta.data[c(idx.cells.1,idx.cells.2), latent.var]
-      }
+  # latent vars
+  if (!is.null(latent.vars)) {
+    for (latent.var in latent.vars) {
+      df_coldata[[latent.var]] <- object@meta.data[c(idx.cells.1,idx.cells.2), latent.var]
     }
-
-    # add random vars to column data
-    for (random_effect.var in random_effect.vars) {
-      df_coldata[[random_effect.var]] <- as.factor(
-          object@meta.data[c(idx.cells.1,idx.cells.2),random_effect.var]
-        )
-    }
-
-    # check for NAs in column data
-    for (colname in colnames(df_coldata)) {
-      if (any(is.na(df_coldata[[colname]]))) {
-        stop(paste0("variable '", colname, "' contains NAs"))
-      }
-    }
-
-    # check whether random var levels overlap entirely with test condition
-    for (random_effect.var in random_effect.vars) {
-      for (re_lvl in levels(df_coldata[[random_effect.var]])) {
-        if (all(df_coldata[[random_effect.var]]==re_lvl & 1:ncol(densemat) %in% idx.cells.1)) {
-          stop(paste0(random_effect.var, " level ", re_lvl, " overlaps entirely with ident.1. Increase ", max.cells.per.ident, " or check the data"))
-        }
-        else if (all(df_coldata[[random_effect.var]]==re_lvl & 1:ncol(densemat) %in% idx.cells.2)) {
-          stop(paste0(random_effect.var, " level ", re_lvl, " overlaps entirely with ident.2. Increase ", max.cells.per.ident, " or check the data"))
-        }
-      }
-    }
-
-    #======== prep  feature data =========================
-
-    df_feature = data.frame("primerid"=rownames(densemat)) # primerid is hardcoded feature name in MAST
-
-    #======== prep SingleCellAssay object ============================
-
-    expr = quote(MAST::FromMatrix(exprsArray=densemat,
-                                   check_sanity = TRUE,
-                                   cData=df_coldata,
-                                   fData=df_feature))
-    sca <- if (verbose) eval(expr) else suppressMessages(eval(expr))
-
-    # set group as a factor and make group1 the reference
-    #cond <- factor(x = SummarizedExperiment::colData(sca)$group)
-    # in Seurat source this is Group1!?
-    # see https://github.com/satijalab/seurat/blob/master/R/differential_expression.R
-    SummarizedExperiment::colData(sca)$group <- relevel(SummarizedExperiment::colData(sca)$group, ref="Group2")
-    # cond <- relevel(x = cond, ref = "Group2")
-    # SummarizedExperiment::colData(sca)$condition <- cond
-
-    # add the centered number of expressed genes to the model
-    # cdr2 <- colSums(SummarizedExperiment::assay(sca)>0)
-    # SummarizedExperiment::colData(sca)$cngeneson <- scale(cdr2)
-
-    #======== run MAST test ======================
-
-    str_plus = if (!is.null(latent.vars)) " + " else ""
-
-    fmla <- as.formula(
-      object = paste0(" ~ group", str_plus, paste(latent.vars, collapse = " + "), paste(" + (1 |", random_effect.vars, ")", collapse=""))
-    )
-
-    # fit model parameters
-    expr = quote(MAST::zlm(formula = fmla,
-                     sca = sca,
-                     method = 'glmer',
-                     ebayes = F,
-                     strictConvergence = FALSE,
-                     ...))
-
-    zlmCond <- if (verbose) eval(expr) else suppressMessages(eval(expr))
-
-    if (verbose) {
-      print(zlmCond)
-      message("Compute likelihoods and p-values")
-    }
-    # call a likelihood ratio test on the fitted object
-    expr = quote(MAST::summary(object = zlmCond, doLRT = 'groupGroup1'))
-    summaryCond <- if (verbose) eval(expr) else suppressWarnings(suppressMessages(eval(expr)))
-
-    if ("character" %in% class(summaryCond)) stop("No differentially genes detected")
-    # print(summaryCond,n=4)
-    # Fitted zlm with top 4 genes per contrast:
-    #   ( log fold change Z-score )
-    # primerid           conditionGroup1 cngeneson
-    # Akr1c20              -4.1            13.2*
-    # Bclaf3               18.5*            4.8
-    # Cmss1                -0.3            -9.9*
-    # Cux2                -16.5*            4.6
-    # ENSMUSG00000115022  -19.5*            7.6
-    # Pot1b                13.5*            5.3
-    # Siah1a                4.6            17.6*
-    # Sipa1l2               1.8            10.5*
-    #
-    #
-    # summaryCond$datatable has colnames
-    # "primerid" feature name
-    # "component" if no latent.vars, "C" (continuous) "D" (discrete)  "H" (hurdle) "S" (RE?) "logFC"
-    # "contrast" if no latent.vars,  conditionGroup1 (Intercept) cngeneson
-    # "ci.hi" confidence interval (high)
-    # "ci.lo" confidence interval (low)
-    # "coef" coefficient estimate
-    # "z" z-scores
-
-    # uses
-    # https://www.bioconductor.org/packages/release/bioc/vignettes/MAST/inst/doc/MAITAnalysis.html#differential-expression-using-a-hurdle-model
-    # and
-    # https://github.com/kdzimm/PseudoreplicationPaper/blob/master/Type_1_Error/Type%201%20-%20MAST%20RE.Rmd
-
-    de.results <- data.frame(
-      "p_val" = summaryCond$datatable[contrast=='groupGroup1' & component=='H', `Pr(>Chisq)`],
-      fc.results[vec_logical_features,])  #setDF(summaryCond$datatable[contrast=='groupGroup1' & component=='logFC', .(coef)])
-
-  } else if (test.use == "mgcv::bam") {
-    print("sorry, not implemented yet")
   }
 
-  de.results$p_val_adj = p.adjust(de.results$p_val, method=p.adjust.method, n=length(vec_logical_features))
+  # add random vars to column data
+  for (random_effect.var in random_effect.vars) {
+    df_coldata[[random_effect.var]] <- as.factor(
+        object@meta.data[c(idx.cells.1,idx.cells.2),random_effect.var]
+      )
+  }
 
+  # check for NAs in column data
+  for (colname in colnames(df_coldata)) {
+    if (any(is.na(df_coldata[[colname]]))) {
+      stop(paste0("variable '", colname, "' contains NAs"))
+    }
+  }
+
+  # check whether random var levels overlap entirely with test condition
+  for (random_effect.var in random_effect.vars) {
+    for (re_lvl in levels(df_coldata[[random_effect.var]])) {
+      if (all(df_coldata[[random_effect.var]]==re_lvl & 1:ncol(densemat) %in% idx.cells.1)) {
+        stop(paste0(random_effect.var, " level ", re_lvl, " overlaps entirely with ident.1. Increase ", max.cells.per.ident, " or check the data"))
+      }
+      else if (all(df_coldata[[random_effect.var]]==re_lvl & 1:ncol(densemat) %in% idx.cells.2)) {
+        stop(paste0(random_effect.var, " level ", re_lvl, " overlaps entirely with ident.2. Increase ", max.cells.per.ident, " or check the data"))
+      }
+    }
+  }
+
+  #======== prep  feature data =========================
+
+  df_feature = data.frame("primerid"=rownames(densemat)) # primerid is hardcoded feature name in MAST
+
+  #======== prep SingleCellAssay object ============================
+
+  expr = quote(MAST::FromMatrix(exprsArray=densemat,
+                                 check_sanity = TRUE,
+                                 cData=df_coldata,
+                                 fData=df_feature))
+  sca <- if (verbose) eval(expr) else suppressMessages(eval(expr))
+
+  # set group as a factor and make group1 the reference
+  #cond <- factor(x = SummarizedExperiment::colData(sca)$group)
+  # in Seurat source this is Group1!?
+  # see https://github.com/satijalab/seurat/blob/master/R/differential_expression.R
+  SummarizedExperiment::colData(sca)$group <- relevel(SummarizedExperiment::colData(sca)$group, ref="Group2")
+  # cond <- relevel(x = cond, ref = "Group2")
+  # SummarizedExperiment::colData(sca)$condition <- cond
+
+  # add the centered number of expressed genes to the model
+  # cdr2 <- colSums(SummarizedExperiment::assay(sca)>0)
+  # SummarizedExperiment::colData(sca)$cngeneson <- scale(cdr2)
+
+  #======== run MAST test ======================
+
+  str_plus = if (!is.null(latent.vars)) " + " else ""
+
+  fmla <- as.formula(
+    object = paste0(" ~ group", str_plus, paste(latent.vars, collapse = " + "), paste(" + (1 |", random_effect.vars, ")", collapse=""))
+  )
+
+  # fit model parameters
+  expr = quote(MAST::zlm(formula = fmla,
+                   sca = sca,
+                   method = 'glmer',
+                   ebayes = F,
+                   strictConvergence = FALSE,
+                   ...))
+
+  zlmCond <- if (verbose) eval(expr) else suppressMessages(eval(expr))
+
+  if (verbose) {
+    print(zlmCond)
+    message("Compute likelihoods and p-values")
+  }
+  # call a likelihood ratio test on the fitted object
+  expr = quote(MAST::summary(object = zlmCond, doLRT = 'groupGroup1'))
+  summaryCond <- if (verbose) eval(expr) else suppressWarnings(suppressMessages(eval(expr)))
+
+  if ("character" %in% class(summaryCond)) stop("No differentially genes detected")
+  # print(summaryCond,n=4)
+  # Fitted zlm with top 4 genes per contrast:
+  #   ( log fold change Z-score )
+  # primerid           conditionGroup1 cngeneson
+  # Akr1c20              -4.1            13.2*
+  # Bclaf3               18.5*            4.8
+  # Cmss1                -0.3            -9.9*
+  # Cux2                -16.5*            4.6
+  # ENSMUSG00000115022  -19.5*            7.6
+  # Pot1b                13.5*            5.3
+  # Siah1a                4.6            17.6*
+  # Sipa1l2               1.8            10.5*
+  #
+  #
+  # summaryCond$datatable has colnames
+  # "primerid" feature name
+  # "component" if no latent.vars, "C" (continuous) "D" (discrete)  "H" (hurdle) "S" (RE?) "logFC"
+  # "contrast" if no latent.vars,  conditionGroup1 (Intercept) cngeneson
+  # "ci.hi" confidence interval (high)
+  # "ci.lo" confidence interval (low)
+  # "coef" coefficient estimate
+  # "z" z-scores
+
+  # uses
+  # https://www.bioconductor.org/packages/release/bioc/vignettes/MAST/inst/doc/MAITAnalysis.html#differential-expression-using-a-hurdle-model
+  # and
+  # https://github.com/kdzimm/PseudoreplicationPaper/blob/master/Type_1_Error/Type%201%20-%20MAST%20RE.Rmd
+
+  de.results <- data.frame(
+    "p_val" = summaryCond$datatable[contrast=='groupGroup1' & component=='H', `Pr(>Chisq)`],
+    fc.results[vec_logical_features,])  #setDF(summaryCond$datatable[contrast=='groupGroup1' & component=='logFC', .(coef)])
+
+  de.results$p_val_adj = p.adjust(de.results$p_val, method=p.adjust.method, n=length(vec_logical_features))
 
   de.results = de.results[order(de.results$p_val, -de.results[[fc.name]]),]
 
   return(de.results)
 }
 
-
+#' Compute counts per cluster
+#'
+#' subroutine
+#'
 ##' .. content for \description{
 ##' goal of this function is to find genes that are specifically expressed in each cluster, it is also
 ##' significantly faster than the FindMarkers function from Seurat
@@ -362,19 +355,13 @@ DE_MAST_RE_seurat = function(
 ##' pseudobulk calculation inspired by: https://jef.works/blog/2020/04/06/quickly-creating-pseudobulks/
 ##' weighted log odds from: https://github.com/juliasilge/tidylo
 ##' }
-##'
-##' @title
+
 ##' @param srt seurat object
 ##' @param group define groups which you want to split; default is srt ident
 ##' @param compare vector of groups you want to compare #add in
 ##' @return
 ##' @author dylanmr
 ##' @export
-
-require(tidylo)
-require(dplyr)
-require(tibble)
-
 .countsperclus <- function(
   object,
   group,
@@ -383,12 +370,12 @@ require(tibble)
   min.cell=100) {
 
   if(is.null(group)) {
-    vec_group <- factor(as.character(Idents(object)))
+    vec_group <- factor(as.character(Seurat::Idents(object)))
   } else {
     vec_group <- factor(object@meta.data[[group]])
   }
   mat.sparse <- Seurat::GetAssayData(object, assay=assay, slot=slot)
-  mm <- model.matrix(~ 0 + vec_group)
+  mm <- stats::model.matrix(~ 0 + vec_group)
   colnames(mm) <- paste0("clus_", levels(vec_group))
   mm <- mm[,colSums(mm)>min.cell]
   mat.sum <- mat.sparse %*% mm

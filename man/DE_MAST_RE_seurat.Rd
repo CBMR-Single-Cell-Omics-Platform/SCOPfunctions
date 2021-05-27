@@ -6,9 +6,11 @@
 \usage{
 DE_MAST_RE_seurat(
   object,
-  random_effect.var,
-  ident.1,
+  random_effect.vars,
+  ident.1 = NULL,
   ident.2 = NULL,
+  cells.1 = NULL,
+  cells.2 = NULL,
   group.by = NULL,
   logfc.threshold = 0.25,
   base = exp(1),
@@ -26,13 +28,17 @@ DE_MAST_RE_seurat(
 )
 }
 \arguments{
-\item{object}{Seurat >=3 object}
+\item{object}{Seurat >=3 object, with log-normalized data in the `data` slot}
 
-\item{random_effect.var}{Random effects to add in MAST model i.e. (1|random_effect.var) .}
+\item{random_effect.vars}{Character vector of variables to add as random intersects in MAST model i.e. ~ ...  + (1|random_effect.var1) + (1|random_effect.var2)}
 
 \item{ident.1}{Identity class to define markers for}
 
 \item{ident.2}{A second identity class for comparison. Leave as NULL to compare with all other cells}
+
+\item{cells.1}{Vector of cell names belonging to group 1. Alternative way to specify ident.1}
+
+\item{cells.2}{Vector of cell names belonging to group 2. Alternative way to specify ident.2}
 
 \item{group.by}{Regroup cells into a different identity class prior to performing differential expression}
 
@@ -48,7 +54,7 @@ DE_MAST_RE_seurat(
 
 \item{min.pct}{Only test genes that are detected in a minimum fraction of min.pct cells in either of the two populations. Meant to speed up the function by not testing genes that are very infrequently expressed. Default is 0.1}
 
-\item{max.cells.per.ident}{Down sample each identity class to a max number. Default is no downsampling. Not activated by default (set to Inf)}
+\item{max.cells.per.ident}{Downsample each identity class to a max number. Default is no downsampling. Not activated by default (set to Inf)}
 
 \item{random.seed}{Random seed to use for down sampling}
 
@@ -66,10 +72,7 @@ DE_MAST_RE_seurat(
 data.frame with column names p_val, avg_log[base]FC, pct.1, pct.2, p_val_adj (identical format to Seurat::FindMarkers)
 }
 \description{
-Based on Seurat::FindMarkers MAST test but with a single random effects variable
-}
-\examples{
-
+Uses Seurat::FindMarkers MAST test hurdle model with added random effects variables
 }
 \references{
 Zimmerman, K.D., Espeland, M.A. & Langefeld, C.D.
