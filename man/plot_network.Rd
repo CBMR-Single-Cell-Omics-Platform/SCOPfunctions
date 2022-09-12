@@ -32,9 +32,6 @@ plot_network(
 
 \item{edge_thickness}{controls edge thickness, which varies by co-expression}
 }
-\value{
-
-}
 \description{
 make a network plot of a set of co-expressed features
 }

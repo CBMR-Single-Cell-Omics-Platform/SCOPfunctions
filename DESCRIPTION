@@ -11,14 +11,15 @@ LazyData: true
 Suggests: 
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
+Depends:
+    data.table
 Imports: 
     Seurat,
     MAST,
-    data.table,
     ggplot2,
     patchwork,
     parallel,
     sessioninfo,
     utils,
     magrittr
-RoxygenNote: 7.1.1
+RoxygenNote: 7.2.1.9000
