@@ -332,8 +332,8 @@ DE_MAST_RE_seurat = function(
   # https://github.com/kdzimm/PseudoreplicationPaper/blob/master/Type_1_Error/Type%201%20-%20MAST%20RE.Rmd
 
   de.results <- data.frame(
-    "p_val" = summaryCond$datatable[contrast=='groupGroup1' & component=='H', `Pr(>Chisq)`],
-    "z_score" = summaryCond$datatable[contrast=='groupGroup1' & component=='H', `z`],
+    "p_val" = summaryCond$datatable[contrast=='groupGroup1' & component=='H', "Pr(>Chisq)"],
+    "z_score" = summaryCond$datatable[contrast=='groupGroup1' & component=='H', "z"],
     fc.results[vec_logical_features,])  #setDF(summaryCond$datatable[contrast=='groupGroup1' & component=='logFC', .(coef)])
 
   de.results$p_val_adj = p.adjust(de.results$p_val, method=p.adjust.method, n=length(features))
