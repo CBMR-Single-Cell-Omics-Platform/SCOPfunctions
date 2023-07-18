@@ -13,7 +13,7 @@
 #' @return an object of the same format as dataIn with new gene names
 #' @export
 #'
-#' @examples df_data_remapped = map_genes(dataIn=df_data, colRemap="genes", df_mapping=fread("./mapping/hgnc_ensembl.csv"), replace=T)
+#' @examples ## df_data_remapped = remap(dataIn=df_data, colRemap="genes", df_mapping=fread("./mapping/hgnc_ensembl.csv"), replace=T)
 remap <- function(dataIn,
                  colRemap = NULL,
                  df_mapping,

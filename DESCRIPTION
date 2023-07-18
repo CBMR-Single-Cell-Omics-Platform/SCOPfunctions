@@ -16,6 +16,7 @@ Depends:
 Imports: 
     Seurat,
     MAST,
+    Matrix,
     ggplot2,
     patchwork,
     parallel,
@@ -23,4 +24,4 @@ Imports:
     utils,
     magrittr,
     methods
-RoxygenNote: 7.1.1
+RoxygenNote: 7.2.3

@@ -13,9 +13,6 @@
 
 \item{compare}{vector of groups you want to compare #add in}
 }
-\value{
-
-}
 \description{
 subroutine
 }
