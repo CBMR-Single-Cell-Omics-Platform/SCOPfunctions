@@ -19,7 +19,7 @@ Utility function to compute Variance Inflation Factors for gene sets using an ex
        in order to account for inter-gene correlation in gene sets derived from expression data
 }
 \examples{
-list_vec_VIF <- f_VIF(datExpr=mat_counts, list_genesets=mylist)
+%list_vec_VIF <- f_VIF(datExpr=mat_counts, list_genesets=mylist)
 }
 \references{
 modified from https://rdrr.io/bioc/qusage/src/R/qusage.R

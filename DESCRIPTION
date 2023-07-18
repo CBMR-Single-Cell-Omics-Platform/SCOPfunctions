@@ -16,11 +16,11 @@ Depends:
 Imports: 
     Seurat,
     MAST,
-    data.table,
     ggplot2,
     patchwork,
     parallel,
     sessioninfo,
     utils,
-    magrittr
+    magrittr,
+    methods
 RoxygenNote: 7.1.1
