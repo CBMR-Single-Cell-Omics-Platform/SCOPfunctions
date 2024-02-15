@@ -21,7 +21,7 @@
 #' @return a ggplot2 object
 #' @export
 #'
-#' @examples p <- plot_barIdentGroup(seurat_obj=seu, var_ident="sample",var_group="cluster")
+#' @examples ##p <- plot_barIdentGroup(seurat_obj=seu, var_ident="sample",var_group="cluster")
 plot_barIdentGroup = function(seurat_obj,
                               var_ident,
                               var_group,
@@ -106,7 +106,7 @@ plot_barIdentGroup = function(seurat_obj,
 #' @return ggplot2 object
 #' @export
 #'
-#' @examples p <- plot_vlnGrid(seurat_obj=seu, assay="RNA", slot="data", var_group="cluster", vec_features=head(VariableFeatures(seu)))
+#' @examples ##p <- plot_vlnGrid(seurat_obj=seu, assay="RNA", slot="data", var_group="cluster", vec_features=head(VariableFeatures(seu)))
 plot_vlnGrid = function(seurat_obj,
                         assay,
                         slot,

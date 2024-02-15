@@ -8,20 +8,20 @@
 #' @return integer number of dimensions, <= max_dim
 #' @export
 #'
-#' @examples estimate_dimensions(seurat_obj)
-dim_red_est <- function(x,
-                        max_dim=75,
-                        seed.use=12345) {
+#' @examples ##estimate_dimensions(seurat_obj)
+estimate_dimensions <- function(x,
+                       max_dim=75,
+                       seed.use=12345) {
 
-  if(is(x, "SingleCellExperiment")) {
-    x <- as.Seurat(x)
-  }
+ if(is(x, "SingleCellExperiment")) {
+   x <- as.Seurat(x)
+ }
 
-  x %>% RunPCA(., npcs=max_dim, seed.use=seed.use, verbose = F) -> x
+ x %>% RunPCA(., npcs=max_dim, seed.use=seed.use, verbose = F) -> x
 
-  dims <- round(as.numeric(intrinsicDimension::maxLikGlobalDimEst(data = x@reductions$pca[, 1:max_dim], k = 20)))
+ dims <- round(as.numeric(intrinsicDimension::maxLikGlobalDimEst(data = x@reductions$pca[, 1:max_dim], k = 20)))
 
-  return(dims)
+ return(dims)
 }
 
 

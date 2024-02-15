@@ -11,7 +11,7 @@
 #'
 #' @references modified from https://rdrr.io/bioc/qusage/src/R/qusage.R
 #' . drawing on https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3458527/
-#' @examples list_vec_VIF <- geneset_VIF(datExpr=mat_counts, list_genesets=mylist)
+#' @examples ## list_vec_VIF <- geneset_VIF(datExpr=mat_counts, list_genesets=mylist)
 geneset_VIF <- function(datExpr, list_genesets) {
   list_vec_vif = lapply(names(list_genesets), function(genesetname) {
     vec_logicalgenes <-rownames(datExpr) %in% list_genesets[[genesetname]]
